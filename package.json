@@ -1,0 +1,15 @@
+{
+  "name": "tutormind",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently -n \"BACKEND,STUDENT,EDUCATOR\" -c \"blue,magenta,cyan\" \"npm run dev --prefix backend\" \"npm run dev:student --prefix frontend\" \"npm run dev:teacher --prefix frontend\"",
+    "dev:student": "concurrently -n \"BACKEND,STUDENT\" -c \"blue,magenta\" \"npm run dev --prefix backend\" \"npm run dev:student --prefix frontend\"",
+    "dev:teacher": "concurrently -n \"BACKEND,EDUCATOR\" -c \"blue,cyan\" \"npm run dev --prefix backend\" \"npm run dev:teacher --prefix frontend\"",
+    "build": "npm run build --prefix frontend && npm run build:teacher --prefix frontend",
+    "start": "npm run start --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,0 +1,2 @@
+import { createTheme } from '@mui/material/styles';
+export default createTheme({palette:{primary:{main:'#ec735e'},secondary:{main:'#f6c857'},background:{default:'#f7f5ef',paper:'#fffdf8'},text:{primary:'#20211f',secondary:'#777873'}},shape:{borderRadius:9},typography:{fontFamily:'Manrope, sans-serif',h1:{fontWeight:800,letterSpacing:'-1.5px'},h2:{fontWeight:800,letterSpacing:'-.7px'},button:{textTransform:'none',fontWeight:700}}});

@@ -1,0 +1,61 @@
+{
+  "model_name": "RandomForestClassifier",
+  "framework": "scikit-learn 1.8.0",
+  "algorithm": "Ensemble Decision Trees (120 Estimators, Max Depth: 6)",
+  "accuracy": 0.9538,
+  "roc_auc": 0.9942,
+  "f1_score": 0.9641,
+  "cv_mean_accuracy": 0.946,
+  "confusion_matrix": [
+    [
+      266,
+      29
+    ],
+    [
+      8,
+      497
+    ]
+  ],
+  "feature_importances": {
+    "consecutive_errors": 40.15,
+    "tutor_inquiries": 31.74,
+    "accuracy_rate": 13.12,
+    "solving_latency": 11.92,
+    "streak_days": 1.93,
+    "topic_difficulty": 1.15
+  },
+  "features_metadata": {
+    "accuracy_rate": {
+      "label": "Recent Assessment Accuracy",
+      "weight": 13.12,
+      "unit": "%"
+    },
+    "consecutive_errors": {
+      "label": "Consecutive Error Velocity",
+      "weight": 40.15,
+      "unit": "attempts"
+    },
+    "solving_latency": {
+      "label": "Solving Latency / Pacing Ratio",
+      "weight": 11.92,
+      "unit": "x benchmark"
+    },
+    "tutor_inquiries": {
+      "label": "AI Tutor Inquiries on Topic",
+      "weight": 31.74,
+      "unit": "queries"
+    },
+    "streak_days": {
+      "label": "Engagement & Retention Streak",
+      "weight": 1.93,
+      "unit": "days"
+    },
+    "topic_difficulty": {
+      "label": "Curriculum Topic Complexity Tier",
+      "weight": 1.15,
+      "unit": "tier 1-3"
+    }
+  },
+  "training_samples": 4000,
+  "test_samples": 800
+}
