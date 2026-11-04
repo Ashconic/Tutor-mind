@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Build output and caches
+dist/
+build/
+.vite/
+.cache/
+
+# Runtime data and uploads
+uploads/
+*.sqlite
+*.db
+
+# OS and editor files
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+
+# Backups and temporary files
+*.backup
+*.bak
+*.tmp
+*.swp
+*.pptx
+

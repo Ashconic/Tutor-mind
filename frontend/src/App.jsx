@@ -4794,10 +4794,17 @@ export default function App() {
 
   const handleCompleteAssignment = async (assignment, submissionData = {}) => {
     try {
-      const res = await api.post(`/student/assignments/${assignment.id}/complete`, {
+      const payload = {
         score: submissionData.score,
         total: submissionData.total || 3
-      });
+      };
+
+      // Include per-question results if available
+      if (submissionData.questionResults && Array.isArray(submissionData.questionResults)) {
+        payload.questionResults = submissionData.questionResults;
+      }
+
+      const res = await api.post(`/student/assignments/${assignment.id}/complete`, payload);
       if (res.data?.success) {
         const earned = res.data.earnedXp || 100;
         const scoreStr = typeof submissionData.score === 'number' ? ` (Score: ${submissionData.score}/${submissionData.total || 3})` : '';
