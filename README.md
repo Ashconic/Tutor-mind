@@ -4,52 +4,7 @@
 
 ---
 
-## 🏛️ System Architecture
-
-```text
-+---------------------------------------------------------------------------------+
-|                                 CLIENT TIER                                     |
-|  +------------------------------+        +-----------------------------------+  |
-|  |   Student Portal (React/Vite)|        |  Educator Portal (Teacher Dash)   |  |
-|  |   - Interactive Solver       |        |  - Roster & Progress Management   |  |
-|  |   - KaTeX Math Typesetting   |        |  - ML Struggle Risk Alerts        |  |
-|  |   - WebRTC Video & Whiteboard|        |  - Assignment Grading & Analytics |  |
-|  +--------------+---------------+        +-----------------+-----------------+  |
-+-----------------|-----------------------------------------|---------------------+
-                  | HTTP / REST / WebRTC                    | HTTP / REST
-                  v                                         v
-+---------------------------------------------------------------------------------+
-|                            API GATEWAY & BACKEND TIER                           |
-|                       Node.js & Express Server (backend/)                       |
-|  +---------------------------------------------------------------------------+  |
-|  |  Middleware: Helmet Security, CORS, Rate Limiter, JWT Auth Validation     |  |
-|  +---------------------------------------------------------------------------+  |
-|  |  Controllers & Routes:                                                    |  |
-|  |   - /api/auth/*          (Authentication & Session Management)            |  |
-|  |   - /api/students/*      (Student Roster & Profiles)                      |  |
-|  |   - /api/assignments/*   (Assignment Distribution & Submissions)          |  |
-|  |   - /api/ai/*            (Gemini Vision Math Solver & Adaptive Quizzes)   |  |
-|  |   - /api/calls/*         (WebRTC Signaling & Whiteboard Vector Sync)      |  |
-|  |   - /api/ml/*            (Cognitive Struggle Predictor Bridge)            |  |
-|  +---------------------------------+-----------------------------------------+  |
-+------------------------------------|--------------------------------------------+
-                  |                  |                                 |
-         DB Queries               Python Subprocess                 MongoDB Driver
-                  |                  |                                 |
-                  v                  v                                 v
-+-----------------------+ +-----------------------------+ +-----------------------+
-|   DATABASE TIER       | |    MACHINE LEARNING TIER    | |    EXTERNAL AI TIER   |
-|   MongoDB / Mongoose  | |    Python scikit-learn      | |    Google Gemini AI   |
-|   - Users & Students  | |    - Random Forest Model    | |    - Vision OCR Solver|
-|   - Assignments       | |    - Feature Importance     | |    - Quiz Generation  |
-|   - Submissions       | |    - Risk Score Prediction  | |                       |
-|   - Whiteboard States | |    - Cognitive States       | |                       |
-+-----------------------+ +-----------------------------+ +-----------------------+
-```
-
----
-
-## 🌟 Key Features & Architecture
+## 🌟 Key Features
 
 ### 1. Intelligent Student Portal
 - **Interactive Math Solver & KaTeX Renderer**: Step-by-step mathematical problem solving with rich LaTeX math typesetting.
@@ -73,12 +28,82 @@
   - **Solving Latency / Pacing Ratio** (11.92% weight)
   - **Engagement & Retention Streak** (1.93% weight)
   - **Curriculum Topic Complexity Tier** (1.15% weight)
-- **Cognitive State Classification**: Automated categorization into *Mastery Flow*, *Steady Progress*, or *High Struggle Risk* with targeted pedagogical intervention recommendations.
+- **Cognitive State Classification**: Automated categorization into *Mastery Flow* (< 35%), *Steady Progress* (35% - 65%), or *High Struggle Risk* (>= 65%) with targeted pedagogical intervention recommendations (`isAtRisk` when >= 50%).
 
 ### 4. Robust Backend API (`backend/`)
 - **Node.js & Express REST API**: Built with clean MVC architecture and ES Modules (`backend/src/server.js`).
 - **Database Layer**: MongoDB / Mongoose integration with robust schema models for Users, Students, Assignments, Submissions, Whiteboard Sessions, and Telemetry.
 - **Security & Hardening**: JWT Authentication (`jsonwebtoken`), password hashing (`bcryptjs`), security headers (`helmet`), rate limiting (`express-rate-limit`), and CORS protection.
+
+---
+
+## 🏛️ System Architecture & Data Flow
+
+### 1. High-Level Architecture Diagram
+```text
++---------------------------------------------------------------------------------+
+|                                 CLIENT TIER                                     |
+|  +-----------------------------------+   +-----------------------------------+  |
+|  | Student Portal (React 18 / Vite)  |   | Educator Portal (Teacher Dashboard|  |
+|  | - Port 5173                       |   | - Port 5174 (educator-portal.html)|  |
+|  | - MUI v6, Framer Motion, KaTeX    |   | - Roster & Assignment Analytics   |  |
+|  +-----------------+-----------------+   +-----------------+-----------------+  |
++--------------------|---------------------------------------|--------------------+
+                     | Axios REST API / WebRTC Signaling     | Axios REST API
+                     v                                       v
++---------------------------------------------------------------------------------+
+|                            API GATEWAY & BACKEND TIER                           |
+|                       Node.js & Express (backend/src/server.js)                 |
+|  +---------------------------------------------------------------------------+  |
+|  |  Security: Helmet, CORS, Rate Limiter, JWT Authentication Middleware      |  |
+|  +---------------------------------------------------------------------------+  |
+|  |  Route Handlers:                                                          |  |
+|  |   - /api/auth/*          (Registration, Login, JWT Issuance)              |  |
+|  |   - /api/students/*      (Roster & Telemetry Management)                  |  |
+|  |   - /api/assignments/*   (Assignment Distribution & Submissions)          |  |
+|  |   - /api/ai/*            (Gemini Vision OCR & Adaptive Quiz Generation)   |  |
+|  |   - /api/calls/*         (WebRTC Signaling & Whiteboard Vector Sync)      |  |
+|  |   - /api/ml/*            (Random Forest Struggle Predictor Bridge)        |  |
+|  +---------------------------------+-------------------------+---------------+  |
++------------------------------------|-------------------------|------------------+
+                                     |                         |
+                         MongoDB Driver (Mongoose)     Python Subprocess Bridge
+                                     |                         |
+                                     v                         v
++---------------------------------------+   +-------------------------------------+
+|            DATABASE TIER              |   |       MACHINE LEARNING TIER         |
+|         MongoDB / Mongoose            |   |       Python scikit-learn           |
+|  - Users & Students Collections       |   |  - ml_service/predict.py            |
+|  - Assignments & Submissions          |   |  - ml_service/train_model.py        |
+|  - Whiteboard Vector States           |   |  - ml_service/struggle_model.joblib |
+|  - Telemetry & Analytics Records      |   |  - ml_service/model_metrics.json    |
++---------------------------------------+   +-------------------------------------+
+```
+
+### 2. Machine Learning Pipeline & Inference Flow
+```text
+[ Student Activity Telemetry ]
+  ├── consecutive_errors (40.15% weight)
+  ├── tutor_inquiries    (31.74% weight)
+  ├── accuracy_rate      (13.12% weight)
+  ├── solving_latency    (11.92% weight)
+  ├── streak_days        (1.93% weight)
+  └── topic_difficulty   (1.15% weight)
+           │
+           ▼
+[ Express Backend (`/api/ml/predict-struggle`) ]
+           │
+           ▼ (Spawns Python Subprocess)
+[ `ml_service/predict.py` & `struggle_model.joblib` ]
+           │
+           ├─► Calculated Struggle Risk Score (0% - 100%)
+           │     ├─► Risk < 35%  ──► "Mastery Flow" (Advanced extension)
+           │     ├─► 35% <= Risk < 65% ──► "Steady Progress" (Normal reinforcement)
+           │     └─► Risk >= 65% ──► "High Struggle Risk" (Pedagogical intervention)
+           │     (Flagged `isAtRisk` when Risk >= 50%)
+           │
+           └─► Explainable AI Factor Ranking & Recommended Action
+```
 
 ---
 
@@ -154,7 +179,7 @@ MathLingo-AI/
 | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Register a new user (student/educator) |
 | `POST` | `/api/auth/login` | Authenticate user and issue JWT token |
-| `GET` | `/api/students/roster` | Retrieve student roster and performance metrics |
+| `GET` | `/:version/api/students/roster` | Retrieve student roster and performance metrics |
 | `GET` | `/api/assignments` | List class assignments and active quizzes |
 | `POST` | `/api/assignments/submit` | Submit assignment solutions and update telemetry |
 | `POST` | `/api/ai/vision` | Optical math problem interpretation & solving |
@@ -166,4 +191,6 @@ MathLingo-AI/
 
 ---
 
+## 🛡️ License & Author
 
+Developed and maintained by **Akshay Bhat** (`bhatakshay09@gmail.com`).
