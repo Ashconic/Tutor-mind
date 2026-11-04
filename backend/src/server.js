@@ -239,12 +239,16 @@ const addOrUpdateStruggle = ({
   unit = '',
   triggerType = 'quiz_failure', // 'quiz_failure' | 'inquiry_loop' | 'wrong_answer'
   score = null,
+  total = null,
+  questionResults = null,
   inquiryCount = null,
+  topicDifficulty = null,
   question = '',
   selectedAnswer = '',
   correctAnswer = '',
   concept = '',
-  detail = ''
+  detail = '',
+  assignmentId = ''
 }) => {
   if (!student || !isRealStudent(student)) return null;
   const studentEmail = (student.email || '').toLowerCase().trim();
@@ -257,16 +261,59 @@ const addOrUpdateStruggle = ({
   );
 
   const cleanScore = typeof score === 'number' ? Math.round(score) : null;
+  const cleanTotal = typeof total === 'number' ? total : (questionResults ? questionResults.length : null);
   const cleanDetail = detail || (triggerType === 'wrong_answer'
     ? `Selected incorrect answer "${selectedAnswer}" for "${(question || '').slice(0, 60)}..." (Correct: "${correctAnswer}")`
     : triggerType === 'quiz_failure'
     ? `Scored ${cleanScore}% on chapter quiz`
     : `Asked ${inquiryCount || 3} questions in Tutor session`);
 
-  const accVal = cleanScore !== null ? cleanScore / 100 : (triggerType === 'wrong_answer' ? 0.33 : 0.45);
-  const errsVal = triggerType === 'wrong_answer' ? 2 : (cleanScore !== null && cleanScore < 50 ? 2 : 1);
-  const inqVal = inquiryCount || (triggerType === 'inquiry_loop' ? 4 : 1);
-  const initLogit = -3.8 * accVal + 1.1 * errsVal + 0.45 * inqVal;
+  // Real data computation for 6 features
+  let accVal;
+  if (questionResults && Array.isArray(questionResults) && questionResults.length > 0) {
+    const correctCount = questionResults.filter(q => q.isCorrect).length;
+    accVal = correctCount / questionResults.length;
+  } else if (cleanScore !== null && cleanTotal !== null && cleanTotal > 0) {
+    accVal = cleanScore / cleanTotal;
+  } else if (cleanScore !== null) {
+    accVal = cleanScore / 100;
+  } else {
+    accVal = triggerType === 'wrong_answer' ? 0.33 : 0.45;
+  }
+
+  let errsVal;
+  if (questionResults && Array.isArray(questionResults) && questionResults.length > 0) {
+    let longestWrongRun = 0;
+    let currentRun = 0;
+    for (const qr of questionResults) {
+      if (!qr.isCorrect) {
+        currentRun++;
+        if (currentRun > longestWrongRun) longestWrongRun = currentRun;
+      } else {
+        currentRun = 0;
+      }
+    }
+    const totalWrong = questionResults.filter(q => !q.isCorrect).length;
+    errsVal = longestWrongRun > 0 ? longestWrongRun : totalWrong;
+  } else {
+    errsVal = triggerType === 'wrong_answer' ? 2 : (cleanScore !== null && cleanScore < 50 ? 2 : 1);
+  }
+
+  const latVal = 1.9; // Default solving latency (no real source)
+  const inqVal = inquiryCount !== null ? inquiryCount : (triggerType === 'inquiry_loop' ? 4 : 1);
+  const streakVal = student.streak !== undefined ? student.streak : (student.streakDays !== undefined ? student.streakDays : 1);
+  const diffVal = topicDifficulty !== null ? topicDifficulty : 2;
+
+  const featureProvenance = {
+    accuracy_rate: (questionResults || cleanScore !== null) ? 'real' : 'default',
+    consecutive_errors: questionResults ? 'real' : 'default',
+    solving_latency: 'default',
+    tutor_inquiries: inquiryCount !== null ? 'real' : 'default',
+    streak_days: (student.streak !== undefined || student.streakDays !== undefined) ? 'real' : 'default',
+    topic_difficulty: topicDifficulty !== null ? 'real' : 'default'
+  };
+
+  const initLogit = -3.8 * accVal + 1.1 * errsVal + 0.7 * (latVal - 1.0) + 0.45 * inqVal - 0.06 * streakVal + 0.5 * diffVal;
   const initProb = 1.0 / (1.0 + Math.exp(-initLogit));
   const initScore = Math.round(initProb * 1000) / 10;
 
@@ -283,6 +330,7 @@ const addOrUpdateStruggle = ({
     signal.updatedAt = new Date().toISOString();
     signal.mlRiskScore = initScore;
     signal.cognitiveState = initScore >= 65 ? 'High Struggle Risk' : initScore >= 35 ? 'Steady Progress' : 'Mastery Flow';
+    signal.featureProvenance = featureProvenance;
   } else {
     signal = {
       id: `str-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -305,7 +353,9 @@ const addOrUpdateStruggle = ({
       timestamp: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       mlRiskScore: initScore,
-      cognitiveState: initScore >= 65 ? 'High Struggle Risk' : initScore >= 35 ? 'Steady Progress' : 'Mastery Flow'
+      cognitiveState: initScore >= 65 ? 'High Struggle Risk' : initScore >= 35 ? 'Steady Progress' : 'Mastery Flow',
+      featureProvenance,
+      assignmentId: assignmentId || ''
     };
     struggleSignals.unshift(signal);
     if (struggleSignals.length > 50) struggleSignals.pop();
@@ -315,10 +365,10 @@ const addOrUpdateStruggle = ({
   predictStudentStruggleML({
     accuracyRate: accVal,
     consecutiveErrors: errsVal,
-    solvingLatency: 1.9,
+    solvingLatency: latVal,
     tutorInquiries: inqVal,
-    streak: student.streak || 1,
-    difficulty: 2
+    streak: streakVal,
+    difficulty: diffVal
   }).then((ml) => {
     if (signal && ml) {
       signal.mlRisk = ml;
@@ -327,6 +377,7 @@ const addOrUpdateStruggle = ({
       signal.contributingFactors = ml.contributingFactors;
       signal.recommendedAction = ml.recommendedAction;
       signal.mlModel = ml.modelInfo?.modelName || 'RandomForestClassifier';
+      signal.featureProvenance = featureProvenance;
     }
   }).catch(() => {});
 
@@ -1670,7 +1721,8 @@ app.get('/api/teacher/assignments', teacherAuth, route(async (req, res) => {
         isCompleted: Boolean(isCompleted),
         score: submission?.score ?? (isCompleted ? 3 : null),
         totalQuestions: submission?.total ?? 3,
-        submittedAt: submission?.submittedAt ?? (isCompleted ? a.createdAt : null)
+        submittedAt: submission?.submittedAt ?? (isCompleted ? a.createdAt : null),
+        questionResults: submission?.questionResults || null
       };
 
       if (isCompleted) {
@@ -2073,6 +2125,7 @@ app.post('/api/student/assignments/:id/complete', auth, route(async (req, res) =
   const assignmentId = req.params.id;
   const score = typeof req.body?.score === 'number' ? req.body.score : null;
   const total = typeof req.body?.total === 'number' ? req.body.total : 3;
+  const rawQuestionResults = req.body?.questionResults;
 
   const assignment = teacherAssignments.find((a) => a.id === assignmentId);
   if (!assignment) {
@@ -2083,7 +2136,49 @@ app.post('/api/student/assignments/:id/complete', auth, route(async (req, res) =
   assignment.completedStudentEmails = assignment.completedStudentEmails || [];
   assignment.submissions = assignment.submissions || {};
 
-  const subData = { score: score ?? total, total, submittedAt: new Date().toISOString() };
+  // Validate and sanitize questionResults if provided
+  let questionResults = null;
+  if (Array.isArray(rawQuestionResults) && rawQuestionResults.length > 0) {
+    if (rawQuestionResults.length > 50) {
+      return res.status(400).json({ message: 'questionResults array exceeds maximum size of 50 items' });
+    }
+
+    questionResults = rawQuestionResults.slice(0, 50).map((qr) => {
+      const question = String(qr.question || '').slice(0, 2000);
+      const studentAnswer = String(qr.studentAnswer || '').slice(0, 500);
+      const correctAnswer = String(qr.correctAnswer || '').slice(0, 500);
+      const options = Array.isArray(qr.options) ? qr.options.slice(0, 10).map(o => String(o).slice(0, 500)) : null;
+
+      // Server-side correctness verification (normalized comparison)
+      const normalizeAnswer = (ans) => String(ans || '').trim().toLowerCase();
+      const isCorrect = normalizeAnswer(studentAnswer) === normalizeAnswer(correctAnswer);
+
+      return {
+        question,
+        options,
+        studentAnswer,
+        correctAnswer,
+        isCorrect
+      };
+    });
+
+    // Verify computed correctness matches claimed score
+    const computedCorrect = questionResults.filter(qr => qr.isCorrect).length;
+    const claimedScore = score ?? total;
+    if (computedCorrect !== claimedScore) {
+      console.warn(`[Assignment ${assignmentId}] Score mismatch for student ${studentId}: claimed ${claimedScore}/${total}, computed ${computedCorrect}/${questionResults.length}. Keeping claimed score.`);
+    }
+  }
+
+  const subData = {
+    score: score ?? total,
+    total,
+    submittedAt: new Date().toISOString()
+  };
+  if (questionResults) {
+    subData.questionResults = questionResults;
+  }
+
   assignment.submissions[studentId] = subData;
   if (headerUserId) assignment.submissions[headerUserId] = subData;
   if (studentEmail) assignment.submissions[studentEmail] = subData;
@@ -2135,6 +2230,28 @@ app.post('/api/student/assignments/:id/complete', auth, route(async (req, res) =
     xp: `+${xpReward} XP`,
     badge: 'Assignment'
   });
+
+  const finalScore = score ?? total;
+  if (finalScore < total || (questionResults && questionResults.some(q => !q.isCorrect))) {
+    const firstWrong = questionResults?.find(q => !q.isCorrect);
+    addOrUpdateStruggle({
+      student,
+      subject: assignment.subject || 'Mathematics',
+      chapterId: assignment.chapterId || assignment.chapter || '',
+      chapterTitle: assignment.chapter || assignment.title,
+      unit: assignment.unit || '',
+      triggerType: 'wrong_answer',
+      score: finalScore,
+      total,
+      questionResults,
+      topicDifficulty: assignment.difficulty || 2,
+      assignmentId: assignment.id,
+      question: firstWrong?.question || assignment.title,
+      selectedAnswer: firstWrong?.studentAnswer || '',
+      correctAnswer: firstWrong?.correctAnswer || '',
+      detail: `Submitted assignment "${assignment.title}" with score ${finalScore}/${total}.`
+    });
+  }
 
   const studentName = student.name || student.username || studentEmail;
 
