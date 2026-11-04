@@ -121,6 +121,4 @@ MathLingo-AI/
 
 ---
 
-## 🛡️ License & Author
 
-Developed and maintained by **Akshay Bhat** (`bhatakshay09@gmail.com`).
