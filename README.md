@@ -32,78 +32,79 @@
 
 ### 4. Robust Backend API (`backend/`)
 - **Node.js & Express REST API**: Built with clean MVC architecture and ES Modules (`backend/src/server.js`).
-- **Database Layer**: MongoDB / Mongoose integration with robust schema models for Users, Students, Assignments, Submissions, Whiteboard Sessions, and Telemetry.
+- **Database Layer**: In-memory store implementation (`backend/src/server.js`). Note: Mongoose is listed in `backend/package.json` but unused in `server.js`.
 - **Security & Hardening**: JWT Authentication (`jsonwebtoken`), password hashing (`bcryptjs`), security headers (`helmet`), rate limiting (`express-rate-limit`), and CORS protection.
 
 ---
 
-## 🏛️ System Architecture & Data Flow
+## 🏛️ System Architecture
 
-### 1. High-Level Architecture Diagram
-```text
-+---------------------------------------------------------------------------------+
-|                                 CLIENT TIER                                     |
-|  +-----------------------------------+   +-----------------------------------+  |
-|  | Student Portal (React 18 / Vite)  |   | Educator Portal (Teacher Dashboard|  |
-|  | - Port 5173                       |   | - Port 5174 (educator-portal.html)|  |
-|  | - MUI v6, Framer Motion, KaTeX    |   | - Roster & Assignment Analytics   |  |
-|  +-----------------+-----------------+   +-----------------+-----------------+  |
-+--------------------|---------------------------------------|--------------------+
-                     | Axios REST API / WebRTC Signaling     | Axios REST API
-                     v                                       v
-+---------------------------------------------------------------------------------+
-|                            API GATEWAY & BACKEND TIER                           |
-|                       Node.js & Express (backend/src/server.js)                 |
-|  +---------------------------------------------------------------------------+  |
-|  |  Security: Helmet, CORS, Rate Limiter, JWT Authentication Middleware      |  |
-|  +---------------------------------------------------------------------------+  |
-|  |  Route Handlers:                                                          |  |
-|  |   - /api/auth/*          (Registration, Login, JWT Issuance)              |  |
-|  |   - /api/students/*      (Roster & Telemetry Management)                  |  |
-|  |   - /api/assignments/*   (Assignment Distribution & Submissions)          |  |
-|  |   - /api/ai/*            (Gemini Vision OCR & Adaptive Quiz Generation)   |  |
-|  |   - /api/calls/*         (WebRTC Signaling & Whiteboard Vector Sync)      |  |
-|  |   - /api/ml/*            (Random Forest Struggle Predictor Bridge)        |  |
-|  +---------------------------------+-------------------------+---------------+  |
-+------------------------------------|-------------------------|------------------+
-                                     |                         |
-                         MongoDB Driver (Mongoose)     Python Subprocess Bridge
-                                     |                         |
-                                     v                         v
-+---------------------------------------+   +-------------------------------------+
-|            DATABASE TIER              |   |       MACHINE LEARNING TIER         |
-|         MongoDB / Mongoose            |   |       Python scikit-learn           |
-|  - Users & Students Collections       |   |  - ml_service/predict.py            |
-|  - Assignments & Submissions          |   |  - ml_service/train_model.py        |
-|  - Whiteboard Vector States           |   |  - ml_service/struggle_model.joblib |
-|  - Telemetry & Analytics Records      |   |  - ml_service/model_metrics.json    |
-+---------------------------------------+   +-------------------------------------+
-```
+```mermaid
+flowchart TD
+    Client(["Teacher or Student"])
 
-### 2. Machine Learning Pipeline & Inference Flow
-```text
-[ Student Activity Telemetry ]
-  ├── consecutive_errors (40.15% weight)
-  ├── tutor_inquiries    (31.74% weight)
-  ├── accuracy_rate      (13.12% weight)
-  ├── solving_latency    (11.92% weight)
-  ├── streak_days        (1.93% weight)
-  └── topic_difficulty   (1.15% weight)
-           │
-           ▼
-[ Express Backend (`/api/ml/predict-struggle`) ]
-           │
-           ▼ (Spawns Python Subprocess)
-[ `ml_service/predict.py` & `struggle_model.joblib` ]
-           │
-           ├─► Calculated Struggle Risk Score (0% - 100%)
-           │     ├─► Risk < 35%  ──► "Mastery Flow" (Advanced extension)
-           │     ├─► 35% <= Risk < 65% ──► "Steady Progress" (Normal reinforcement)
-           │     └─► Risk >= 65% ──► "High Struggle Risk" (Pedagogical intervention)
-           │     (Flagged `isAtRisk` when Risk >= 50%)
-           │
-           └─► Explainable AI Factor Ranking & Recommended Action
+    subgraph clientTier["Client Tier"]
+        studentPortal["Student portal<br/>React 18, Vite 6, MUI 6<br/>Port 5173"]
+        educatorPortal["Educator portal<br/>React 18, Vite 6, MUI 6<br/>Port 5174"]
+    end
+
+    subgraph backendTier["API Gateway & Backend Tier"]
+        backend["Express 4.21.1<br/>server.js, Port 5000"]
+        security["Security layer<br/>Helmet, CORS, RateLimit, JWT"]
+        routes["Route groups<br/>/api/auth/*, /api/students/*<br/>/api/assignments/*, /api/ai/*<br/>/api/ml/*, /api/calls/*"]
+    end
+
+    subgraph aiTier["AI Services Tier"]
+        gemini["Google Gemini API<br/>gemini-2.5-flash<br/>Vision, Quiz, Tutor, Hints"]
+    end
+
+    subgraph mlTier["Machine Learning Tier"]
+        mlPredict["Random Forest Model<br/>predict.py, scikit-learn 1.8.0<br/>95.38% Accuracy"]
+        mlFallback["JavaScript Fallback<br/>if Python fails"]
+    end
+
+    subgraph dataTier["Data Tier"]
+        dbStore[(("In-Memory Store<br/>Arrays & Maps<br/>Resets on Restart"))]
+    end
+
+    Client -->|"Interacts via UI"| studentPortal
+    Client -->|"Interacts via UI"| educatorPortal
+    studentPortal -->|"Axios REST / WebRTC"| security
+    educatorPortal -->|"Axios REST"| security
+    security -->|""| backend
+    backend -->|""| routes
+    routes -->|"REST Response"| studentPortal
+    routes -->|"REST Response"| educatorPortal
+    routes -->|"API Call"| gemini
+    gemini -->|"AI Response"| routes
+    routes -->|"Subprocess Exec"| mlPredict
+    mlPredict -->|"JSON Telemetry Result"| routes
+    mlPredict -.->|"Python Error / Timeout"| mlFallback
+    mlFallback -->|"Fallback Result"| routes
+    routes -->|"State Read/Write"| dbStore
+    dbStore -->|"State Data"| routes
+
+    class studentPortal,educatorPortal client
+    class backend,security,routes api
+    class gemini ai
+    class mlPredict ml
+    class mlFallback fallback
+    class dbStore data
+
+    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
+    classDef api fill:#CCFBF1,stroke:#0F766E,color:#134E4A
+    classDef ai fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95
+    classDef ml fill:#FEFCE8,stroke:#CA8A04,color:#713F12
+    classDef data fill:#F3F4F6,stroke:#6B7280,color:#111827
+    classDef fallback fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-dasharray:4 3
+
+    style clientTier fill:#F8FAFC,stroke:#94A3B8,color:#0F172A
+    style backendTier fill:#F0FDFA,stroke:#5EEAD4,color:#134E4A
+    style aiTier fill:#F5F3FF,stroke:#C4B5FD,color:#4C1D95
+    style mlTier fill:#FEFCE8,stroke:#FDE047,color:#713F12
+    style dataTier fill:#F9FAFB,stroke:#D1D5DB,color:#111827
 ```
+*Architecture Legend: Client Tier (Blue), Backend & Gateway (Teal), AI Services (Purple), Machine Learning Tier (Yellow/Gold), Data Tier (Gray).*
 
 ---
 
@@ -140,7 +141,7 @@ MathLingo-AI/
 ### Prerequisites
 - **Node.js** (v18+ recommended)
 - **Python 3.8+** (with `scikit-learn`, `pandas`, `numpy`, `joblib`)
-- **MongoDB** (running locally at `mongodb://127.0.0.1:27017/mathlingo` or connection URI)
+- **MongoDB / In-Memory Mode** (App runs fully in-memory with arrays/maps; Mongoose optional)
 
 ### Installation
 
@@ -179,7 +180,7 @@ MathLingo-AI/
 | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Register a new user (student/educator) |
 | `POST` | `/api/auth/login` | Authenticate user and issue JWT token |
-| `GET` | `/:version/api/students/roster` | Retrieve student roster and performance metrics |
+| `GET` | `/api/students/roster` | Retrieve student roster and performance metrics |
 | `GET` | `/api/assignments` | List class assignments and active quizzes |
 | `POST` | `/api/assignments/submit` | Submit assignment solutions and update telemetry |
 | `POST` | `/api/ai/vision` | Optical math problem interpretation & solving |
