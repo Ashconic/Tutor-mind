@@ -64,15 +64,15 @@ flowchart TD
     end
 
     subgraph dataTier["Data Tier"]
-        dbStore[(("In-Memory Store<br/>Arrays & Maps<br/>Resets on Restart"))]
+        dbStore[("In-Memory Store<br/>Arrays and Maps<br/>Resets on Restart")]
     end
 
     Client -->|"Interacts via UI"| studentPortal
     Client -->|"Interacts via UI"| educatorPortal
     studentPortal -->|"Axios REST / WebRTC"| security
     educatorPortal -->|"Axios REST"| security
-    security -->|""| backend
-    backend -->|""| routes
+    security --> backend
+    backend --> routes
     routes -->|"REST Response"| studentPortal
     routes -->|"REST Response"| educatorPortal
     routes -->|"API Call"| gemini
@@ -192,6 +192,4 @@ MathLingo-AI/
 
 ---
 
-## 🛡️ License & Author
 
-Developed and maintained by **Akshay Bhat** (`bhatakshay09@gmail.com`).
