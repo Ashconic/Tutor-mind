@@ -4,6 +4,51 @@
 
 ---
 
+## 🏛️ System Architecture
+
+```text
++---------------------------------------------------------------------------------+
+|                                 CLIENT TIER                                     |
+|  +------------------------------+        +-----------------------------------+  |
+|  |   Student Portal (React/Vite)|        |  Educator Portal (Teacher Dash)   |  |
+|  |   - Interactive Solver       |        |  - Roster & Progress Management   |  |
+|  |   - KaTeX Math Typesetting   |        |  - ML Struggle Risk Alerts        |  |
+|  |   - WebRTC Video & Whiteboard|        |  - Assignment Grading & Analytics |  |
+|  +--------------+---------------+        +-----------------+-----------------+  |
++-----------------|-----------------------------------------|---------------------+
+                  | HTTP / REST / WebRTC                    | HTTP / REST
+                  v                                         v
++---------------------------------------------------------------------------------+
+|                            API GATEWAY & BACKEND TIER                           |
+|                       Node.js & Express Server (backend/)                       |
+|  +---------------------------------------------------------------------------+  |
+|  |  Middleware: Helmet Security, CORS, Rate Limiter, JWT Auth Validation     |  |
+|  +---------------------------------------------------------------------------+  |
+|  |  Controllers & Routes:                                                    |  |
+|  |   - /api/auth/*          (Authentication & Session Management)            |  |
+|  |   - /api/students/*      (Student Roster & Profiles)                      |  |
+|  |   - /api/assignments/*   (Assignment Distribution & Submissions)          |  |
+|  |   - /api/ai/*            (Gemini Vision Math Solver & Adaptive Quizzes)   |  |
+|  |   - /api/calls/*         (WebRTC Signaling & Whiteboard Vector Sync)      |  |
+|  |   - /api/ml/*            (Cognitive Struggle Predictor Bridge)            |  |
+|  +---------------------------------+-----------------------------------------+  |
++------------------------------------|--------------------------------------------+
+                  |                  |                                 |
+         DB Queries               Python Subprocess                 MongoDB Driver
+                  |                  |                                 |
+                  v                  v                                 v
++-----------------------+ +-----------------------------+ +-----------------------+
+|   DATABASE TIER       | |    MACHINE LEARNING TIER    | |    EXTERNAL AI TIER   |
+|   MongoDB / Mongoose  | |    Python scikit-learn      | |    Google Gemini AI   |
+|   - Users & Students  | |    - Random Forest Model    | |    - Vision OCR Solver|
+|   - Assignments       | |    - Feature Importance     | |    - Quiz Generation  |
+|   - Submissions       | |    - Risk Score Prediction  | |                       |
+|   - Whiteboard States | |    - Cognitive States       | |                       |
++-----------------------+ +-----------------------------+ +-----------------------+
+```
+
+---
+
 ## 🌟 Key Features & Architecture
 
 ### 1. Intelligent Student Portal
@@ -121,4 +166,6 @@ MathLingo-AI/
 
 ---
 
+## 🛡️ License & Author
 
+Developed and maintained by **Akshay Bhat** (`bhatakshay09@gmail.com`).
