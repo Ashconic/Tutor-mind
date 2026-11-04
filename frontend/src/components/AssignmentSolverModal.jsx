@@ -183,9 +183,25 @@ export default function AssignmentSolverModal({
     setIsSubmitting(true);
     try {
       if (onSubmitAssignment) {
+        // Build question results array with student answers and correct answers
+        const questionResults = questions.map((q, idx) => {
+          const answer = answersState[idx];
+          const studentAnswer = answer?.selected || '';
+          const correctAnswer = q.answer || '';
+
+          return {
+            question: q.question,
+            options: q.options || null,
+            studentAnswer,
+            correctAnswer,
+            isCorrect: answer?.isCorrect || false
+          };
+        });
+
         await onSubmitAssignment(assignment, {
           score: finalScore,
-          total: questions.length
+          total: questions.length,
+          questionResults
         });
       }
       onClose();
