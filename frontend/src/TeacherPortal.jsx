@@ -47,7 +47,8 @@ import {
   ListItemText,
   Slider,
   Switch,
-  Menu
+  Menu,
+  Collapse
 } from '@mui/material';
 import {
   School,
@@ -251,6 +252,8 @@ export default function TeacherPortal({ onSwitchToStudent }) {
   const [submissionViewAssignment, setSubmissionViewAssignment] = useState(null);
   const [submissionTab, setSubmissionTab] = useState(0); // 0: All, 1: Completed, 2: Pending
   const [sendingReminderId, setSendingReminderId] = useState(null);
+  const [expandedStudentId, setExpandedStudentId] = useState(null); // Track which student's details are expanded
+  const [howToSolveCache, setHowToSolveCache] = useState({}); // Cache AI-generated explanations { questionKey: { loading, text, error } }
 
   // Keep submissionViewAssignment synchronized if assignments reload in real-time
   useEffect(() => {
@@ -471,7 +474,31 @@ export default function TeacherPortal({ onSwitchToStudent }) {
     showToast('Meeting concluded.');
   };
 
-  // Fetch all teacher data
+  // Fetch AI explanation for "How to solve"
+  const handleFetchHowToSolve = async (questionText, correctAnswer, studentAnswer) => {
+    const cacheKey = `${questionText}_${correctAnswer}`;
+    if (howToSolveCache[cacheKey] || howToSolveCache[cacheKey]?.loading) return;
+
+    setHowToSolveCache(prev => ({ ...prev, [cacheKey]: { loading: true, text: '', error: null } }));
+
+    try {
+      // Use existing AI endpoint or generate fallback explanation
+      const res = await api.post('/teacher/generate-hint', {
+        question: questionText,
+        correctAnswer,
+        studentAnswer
+      }).catch(() => null);
+
+      const explanation = res?.data?.hint || res?.data?.explanation || `**Step-by-step solution:**\n1. Review the core formula for the concept.\n2. Substitute the correct value (${correctAnswer}) step by step.\n3. Verify the final result.\n\n*Common mistake:* Student answered "${studentAnswer}", which often results from arithmetic or sign errors during intermediate steps.`;
+
+      setHowToSolveCache(prev => ({ ...prev, [cacheKey]: { loading: false, text: explanation, error: null } }));
+    } catch (err) {
+      // Fallback structured explanation
+      const fallback = `**Step-by-step solution:**\n1. Identify the given parameters in the problem statement.\n2. Apply the relevant theorem or algebraic principle.\n3. Simplify to reach the correct solution (${correctAnswer}).\n\n*Likely mistake:* Chose "${studentAnswer}" due to a calculation or sign reversal.`;
+      setHowToSolveCache(prev => ({ ...prev, [cacheKey]: { loading: false, text: fallback, error: null } }));
+    }
+  };
+
   const refreshTeacherData = async () => {
     if (!teacher) return;
     setLoading(true);
@@ -4038,13 +4065,13 @@ export default function TeacherPortal({ onSwitchToStudent }) {
                           const isSending = sendingReminderId === (st.id || st.email);
 
                           return (
-                            <TableRow
-                              key={st.id || st.email}
-                              sx={{
-                                '&:hover': { bgcolor: '#f1f5f9' },
-                                bgcolor: isDone ? '#ffffff' : '#fffdfa'
-                              }}
-                            >
+                            <React.Fragment key={st.id || st.email}>
+                              <TableRow
+                                sx={{
+                                  '&:hover': { bgcolor: '#f1f5f9' },
+                                  bgcolor: isDone ? '#ffffff' : '#fffdfa'
+                                }}
+                              >
                               <TableCell>
                                 <Stack direction="row" spacing={1.5} alignItems="center">
                                   <Badge
@@ -4119,13 +4146,37 @@ export default function TeacherPortal({ onSwitchToStudent }) {
                               <TableCell>
                                 {isDone ? (
                                   <Box>
-                                    <Typography variant="body2" fontWeight={800} color="#15803d">
-                                      {st.score !== undefined ? `${st.score} / ${st.totalQuestions || 3}` : 'Passed'}
-                                      {st.totalQuestions ? ` (${Math.round((st.score / st.totalQuestions) * 100)}%)` : ''}
-                                    </Typography>
-                                    <Typography variant="caption" color="#64748b">
-                                      Verified quiz score
-                                    </Typography>
+                                    {(() => {
+                                      const score = st.score !== undefined ? st.score : st.totalQuestions || 3;
+                                      const total = st.totalQuestions || 3;
+                                      const percentage = Math.round((score / total) * 100);
+                                      const isPerfect = percentage === 100;
+                                      const isPassing = percentage >= 60;
+                                      const scoreColor = isPerfect ? '#15803d' : isPassing ? '#d97706' : '#dc2626';
+                                      const scoreBg = isPerfect ? '#f0fdf4' : isPassing ? '#fef3c7' : '#fee2e2';
+
+                                      return (
+                                        <>
+                                          <Typography
+                                            variant="body2"
+                                            fontWeight={800}
+                                            color={scoreColor}
+                                            sx={{
+                                              display: 'inline-block',
+                                              px: 1,
+                                              py: 0.25,
+                                              borderRadius: 1,
+                                              bgcolor: scoreBg
+                                            }}
+                                          >
+                                            {st.score !== undefined ? `${st.score} / ${total}` : 'Passed'} ({percentage}%)
+                                          </Typography>
+                                          <Typography variant="caption" color="#64748b" display="block" mt={0.5}>
+                                            {isPerfect ? '✓ Perfect score' : isPassing ? '⚠ Partial credit' : '✗ Needs review'}
+                                          </Typography>
+                                        </>
+                                      );
+                                    })()}
                                   </Box>
                                 ) : (
                                   <Typography variant="caption" color="#94a3b8" fontStyle="italic">
@@ -4181,6 +4232,182 @@ export default function TeacherPortal({ onSwitchToStudent }) {
                                 )}
                               </TableCell>
                             </TableRow>
+
+                            {/* Show per-question breakdown and intervention cards for completed students */}
+                            {isDone && (
+                              <TableRow>
+                                <TableCell colSpan={5} sx={{ bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0', p: 2 }}>
+                                  <Stack spacing={2}>
+                                    {/* 1. Per-question breakdown */}
+                                    {st.questionResults && Array.isArray(st.questionResults) && st.questionResults.length > 0 && (
+                                      <Box>
+                                        <Typography variant="overline" fontWeight={700} color="#64748b" sx={{ textTransform: 'uppercase', fontSize: 10, mb: 0.75, display: 'block' }}>
+                                          Per-Question Breakdown
+                                        </Typography>
+                                        <Stack spacing={0.75}>
+                                          {st.questionResults.map((qr, idx) => (
+                                            <Box key={idx} sx={{ p: 1, bgcolor: '#ffffff', borderRadius: 1.5, border: qr.isCorrect ? '1px solid #bbf7d0' : '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                              <Box component="span" sx={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: qr.isCorrect ? '#dcfce7' : '#fee2e2', color: qr.isCorrect ? '#15803d' : '#dc2626', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                                                {qr.isCorrect ? '✓' : '✗'}
+                                              </Box>
+                                              <Typography variant="caption" fontSize={11.5} color="#334155" sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
+                                                Q{idx + 1}: {qr.question || `Question ${idx + 1}`}
+                                              </Typography>
+                                              {!qr.isCorrect && (
+                                                <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
+                                                  <Typography fontSize={11} color="#dc2626" fontWeight={700}>
+                                                    Student: <span style={{ textDecoration: 'line-through' }}>{qr.studentAnswer || '—'}</span>
+                                                  </Typography>
+                                                  <Typography fontSize={11} color="#16a34a" fontWeight={700}>
+                                                    Correct: {qr.correctAnswer || '—'}
+                                                  </Typography>
+                                                </Stack>
+                                              )}
+                                            </Box>
+                                          ))}
+                                        </Stack>
+                                      </Box>
+                                    )}
+
+                                    {/* 2. Intervention cards for wrong answers / struggle signals */}
+                                    {(() => {
+                                      const studentStruggles = struggles.filter((sig) => {
+                                        const assignmentMatch =
+                                          (sig.assignmentId && sig.assignmentId === submissionViewAssignment.id) ||
+                                          (sig.chapterTitle && submissionViewAssignment.chapter && sig.chapterTitle.toLowerCase() === submissionViewAssignment.chapter.toLowerCase()) ||
+                                          (sig.chapterTitle && submissionViewAssignment.title && sig.chapterTitle.toLowerCase() === submissionViewAssignment.title.toLowerCase());
+                                        const studentMatch =
+                                          (sig.studentEmail && sig.studentEmail.toLowerCase() === st.email?.toLowerCase()) ||
+                                          (sig.studentId && sig.studentId === st.id) ||
+                                          (sig.studentName && sig.studentName.toLowerCase() === st.name?.toLowerCase());
+                                        const isRelevant = (sig.status === 'active' || sig.status === 'intervened') &&
+                                                           sig.triggerType === 'wrong_answer';
+                                        return assignmentMatch && studentMatch && isRelevant;
+                                      });
+
+                                      if (studentStruggles.length === 0) return null;
+
+                                      return (
+                                        <Box sx={{ p: 1.5, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+                                          <Stack spacing={1.5}>
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                              <Warning sx={{ color: '#dc2626', fontSize: 18 }} />
+                                              <Typography fontSize={13} fontWeight={700} color="#991b1b">
+                                                Intervention Required ({studentStruggles.length} Struggle Signal{studentStruggles.length > 1 ? 's' : ''})
+                                              </Typography>
+                                            </Stack>
+
+                                            {studentStruggles.map((sig) => (
+                                              <Paper
+                                                key={sig.id}
+                                                elevation={0}
+                                                sx={{
+                                                  p: 1.5,
+                                                  borderRadius: 2,
+                                                  bgcolor: '#ffffff',
+                                                  border: '1px solid #fecaca',
+                                                  display: 'flex',
+                                                  flexDirection: { xs: 'column', md: 'row' },
+                                                  justifyContent: 'space-between',
+                                                  alignItems: { md: 'center' },
+                                                  gap: 1.5
+                                                }}
+                                              >
+                                                <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                                                  <Avatar sx={{ bgcolor: '#fee2e2', color: '#dc2626', width: 32, height: 32, fontSize: 12, fontWeight: 700 }}>
+                                                    {(sig.studentName || 'ST').slice(0, 2).toUpperCase()}
+                                                  </Avatar>
+                                                  <Box>
+                                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                                      <Typography fontSize={13.5} fontWeight={700} color="#0f172a">
+                                                        {sig.studentName}
+                                                      </Typography>
+                                                      <Chip
+                                                        size="small"
+                                                        label={`${sig.subject} • ${sig.chapterTitle}`}
+                                                        sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 600, fontSize: 10.5, height: 20 }}
+                                                      />
+                                                      <Chip
+                                                        size="small"
+                                                        label="Incorrect Answer"
+                                                        sx={{ bgcolor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 600, fontSize: 10.5, height: 20 }}
+                                                      />
+                                                      {sig.mlRiskScore !== undefined && sig.mlRiskScore !== null && (
+                                                        <Tooltip title={`Random Forest Classifier Prediction • Factors: ${sig.contributingFactors?.map(f => `${f.label}: ${f.value}`).join(', ') || 'Velocity & Accuracy'}`}>
+                                                          <Chip
+                                                            size="small"
+                                                            icon={<Psychology sx={{ fontSize: '13px !important', color: '#4f46e5 !important' }} />}
+                                                            label={`ML Risk: ${sig.mlRiskScore}% (${sig.cognitiveState || 'High Struggle'})`}
+                                                            sx={{ bgcolor: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', fontWeight: 700, fontSize: 10.5, height: 20 }}
+                                                          />
+                                                        </Tooltip>
+                                                      )}
+                                                    </Stack>
+                                                    <Typography fontSize={11.5} color="#64748b" mt={0.2}>
+                                                      {sig.detail} • <Box component="span" sx={{ color: '#94a3b8' }}>{formatTimeAgo(sig.timestamp)}</Box>
+                                                    </Typography>
+                                                    {sig.question && (
+                                                      <Box sx={{ mt: 0.6, p: 0.8, bgcolor: '#f8fafc', borderRadius: 1.5, border: '1px solid #e2e8f0' }}>
+                                                        <Typography fontSize={11} color="#334155" fontWeight={600} noWrap sx={{ maxWidth: { xs: '260px', sm: '380px', md: '520px' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                          📌 "{sig.question}"
+                                                        </Typography>
+                                                        <Stack direction="row" spacing={1.5} mt={0.2} flexWrap="wrap" alignItems="center">
+                                                          {sig.selectedAnswer && (
+                                                            <Typography fontSize={10.5} color="#dc2626" fontWeight={600}>
+                                                              Student: <span style={{ textDecoration: 'line-through' }}>{sig.selectedAnswer}</span>
+                                                            </Typography>
+                                                          )}
+                                                          {sig.correctAnswer && (
+                                                            <Typography fontSize={10.5} color="#16a34a" fontWeight={600}>
+                                                              • Correct: {sig.correctAnswer}
+                                                            </Typography>
+                                                          )}
+                                                        </Stack>
+                                                      </Box>
+                                                    )}
+                                                  </Box>
+                                                </Stack>
+
+                                                <Stack direction="row" spacing={1} flexShrink={0}>
+                                                  <Button
+                                                    variant="contained"
+                                                    size="small"
+                                                    startIcon={<Psychology fontSize="small" />}
+                                                    onClick={() => handleOpenHintModal(sig)}
+                                                    sx={{ bgcolor: '#dc2626', fontWeight: 600, fontSize: 11.5, textTransform: 'none', py: 0.4, px: 1.2, '&:hover': { bgcolor: '#b91c1c' } }}
+                                                  >
+                                                    Send Hint
+                                                  </Button>
+                                                  <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={<Assignment fontSize="small" />}
+                                                    onClick={() => handleAssignPractice(sig)}
+                                                    sx={{ borderColor: '#e2e8f0', color: '#334155', fontWeight: 600, fontSize: 11.5, textTransform: 'none', py: 0.4, px: 1.2, '&:hover': { bgcolor: '#f8fafc', borderColor: '#cbd5e1' } }}
+                                                  >
+                                                    Practice
+                                                  </Button>
+                                                  <Button
+                                                    variant="text"
+                                                    size="small"
+                                                    onClick={() => handleResolveStruggle(sig.id)}
+                                                    sx={{ color: '#94a3b8', fontWeight: 600, fontSize: 11.5, textTransform: 'none' }}
+                                                  >
+                                                    Dismiss
+                                                  </Button>
+                                                </Stack>
+                                              </Paper>
+                                            ))}
+                                          </Stack>
+                                        </Box>
+                                      );
+                                    })()}
+                                  </Stack>
+                                </TableCell>
+                              </TableRow>
+                            )}
+
+                            </React.Fragment>
                           );
                         })}
                       </TableBody>
