@@ -1,57 +1,126 @@
-# TutorMind
+# MathLingo-AI (TutorMind)
 
-TutorMind is a gamified AI math and STEM learning platform built with React, MUI, Framer Motion, Recharts, Axios, React Router, Express, JWT, bcrypt, and MongoDB-ready configuration.
+**MathLingo-AI (TutorMind)** is an enterprise-grade, AI-powered adaptive mathematics learning platform and real-time virtual tutoring suite. Designed for K-12 and higher education institutions, it combines real-time WebRTC video collaboration, collaborative digital whiteboards, generative AI math problem-solving & adaptive quizzes, and a trained machine learning predictive engine to detect student cognitive struggle before academic failure occurs.
 
-## Run locally
+---
 
-Requirements: Node.js 18+ and npm. MongoDB is optional for the included demo mode.
+## 🌟 Key Features & Architecture
 
-```powershell
-npm run install:all
-npm run dev
-```
+### 1. Intelligent Student Portal
+- **Interactive Math Solver & KaTeX Renderer**: Step-by-step mathematical problem solving with rich LaTeX math typesetting.
+- **AI Vision & Adaptive Quizzes**: Optical math problem interpretation via Gemini AI vision endpoints and dynamic quiz generation tailored to individual skill levels.
+- **Real-Time WebRTC Video Tutoring**: Peer-to-peer and student-to-educator video/audio calls with live signaling and ping monitoring.
+- **Collaborative Whiteboard**: Real-time multi-user vector stroke synchronization, shape rendering, and instant canvas clearing over REST/polling signaling.
+- **Personal Performance Analytics**: Recharts-powered progress dashboards tracking accuracy rates, streak retention, and topic mastery tiers.
 
-Open `http://127.0.0.1:5173`.
+### 2. Comprehensive Educator Portal
+- **Classroom Roster & Progress Management**: Live student roster tracking, performance metrics, and assignment status monitoring.
+- **Assignment Builder & Submissions Grading**: Create, distribute, and grade assignments with rich feedback and score tracking.
+- **ML Cognitive Struggle Alerts**: Real-time monitoring of student struggle risk scores powered by machine learning inference.
+- **Live Office Hours & Session Controls**: Coordinate virtual study sessions and monitor active video calls across the classroom.
 
-The API runs at `http://localhost:5000`. The frontend uses a demo login and the backend uses an in-memory seed store by default, so the complete flow works without Python or MongoDB.
+### 3. Machine Learning Predictive Engine (`ml_service/`)
+- **Random Forest Classifier**: Trained on student behavioral telemetry (`model_metrics.json`: **95.38% Accuracy**, **0.9942 ROC-AUC**, **0.9641 F1-Score**).
+- **Explainable AI Feature Importance**:
+  - **Consecutive Error Velocity** (40.15% weight)
+  - **AI Tutor Inquiries** (31.74% weight)
+  - **Recent Assessment Accuracy** (13.12% weight)
+  - **Solving Latency / Pacing Ratio** (11.92% weight)
+  - **Engagement & Retention Streak** (1.93% weight)
+  - **Curriculum Topic Complexity Tier** (1.15% weight)
+- **Cognitive State Classification**: Automated categorization into *Mastery Flow*, *Steady Progress*, or *High Struggle Risk* with targeted pedagogical intervention recommendations.
 
-## Enable real AI tutoring
+### 4. Robust Backend API (`backend/`)
+- **Node.js & Express REST API**: Built with clean MVC architecture and ES Modules (`backend/src/server.js`).
+- **Database Layer**: MongoDB / Mongoose integration with robust schema models for Users, Students, Assignments, Submissions, Whiteboard Sessions, and Telemetry.
+- **Security & Hardening**: JWT Authentication (`jsonwebtoken`), password hashing (`bcryptjs`), security headers (`helmet`), rate limiting (`express-rate-limit`), and CORS protection.
 
-The Tutor calls an OpenAI-compatible chat-completions endpoint from the backend. Copy `backend/.env.example` to `backend/.env` and set:
+---
+
+## 📂 Project Structure
 
 ```text
-AI_API_KEY=your_gemini_key
-AI_PROVIDER=gemini
-AI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent
-AI_MODEL=gemini-3.5-flash-lite
+MathLingo-AI/
+├── package.json              # Root workspace orchestration scripts
+├── README.md                 # Project documentation
+├── backend/                  # Node.js & Express REST API backend
+│   ├── package.json
+│   ├── .env.example
+│   └── src/
+│       ├── server.js         # Main Express server & API route handlers
+│       ├── models/           # Mongoose database schemas
+│       └── middleware/       # Auth and validation middleware
+├── frontend/                 # React 18 & Vite frontend application
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── index.html
+│   ├── educator-portal.html  # Dedicated educator dashboard entry
+│   └── src/                  # React components, contexts, and API clients
+└── ml_service/               # Python machine learning inference service
+    ├── predict.py            # CLI & Python prediction runner
+    ├── train_model.py        # Model training & cross-validation script
+    ├── model_metrics.json    # Saved model evaluation metrics & feature weights
+    └── struggle_model.joblib # Serialized Random Forest classifier
 ```
 
-Restart `npm run dev` after changing environment variables. The key stays on the backend and is never sent to the browser. Without a key, the app uses the limited local fallback and clearly reports provider errors.
+---
 
-## Demo account
+## 🚀 Getting Started
 
-- Email: `student1@tutormind.com`
-- Password: `Student@123`
+### Prerequisites
+- **Node.js** (v18+ recommended)
+- **Python 3.8+** (with `scikit-learn`, `pandas`, `numpy`, `joblib`)
+- **MongoDB** (running locally at `mongodb://127.0.0.1:27017/mathlingo` or connection URI)
 
-## MongoDB configuration
+### Installation
 
-Copy `backend/.env.example` to `backend/.env`, set `MONGODB_URI`, and connect the persistence layer in `backend/src/server.js` when deploying. The current API keeps the same contracts while running in demo-memory mode for reliable local startup.
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/akshay9128/MathLingo-AI.git
+   cd MathLingo-AI
+   ```
 
-## Available API groups
+2. **Install All Dependencies (Root Workspace)**:
+   ```bash
+   npm run install:all
+   ```
+   *(Or install manually: `npm install --prefix backend` and `npm install --prefix frontend`)*
 
-- `/api/auth`: register, login, profile, update, logout
-- `/api/lessons`: filtering, recommendations, lesson detail, completion
-- `/api/progress`: overview, lessons, topics, stats
-- `/api/gamification`: badges, earned badges, leaderboard, XP
-- `/api/ai`: chat, conversations, explanations, hints
-- `/api/ai/vision`: analyze handwritten canvas drawings, images, and PDFs with Gemini Vision
-- `/api/health`: service health check
+3. **Configure Environment Variables**:
+   Copy `backend/.env.example` to `backend/.env` and update values if needed:
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
 
-## Production build
+4. **Run Development Servers**:
+   Run backend, student portal, and educator portal concurrently:
+   ```bash
+   npm run dev
+   ```
+   - **Student Portal**: `http://localhost:5173`
+   - **Educator Portal**: `http://localhost:5174`
+   - **Backend API**: `http://localhost:5000`
 
-```powershell
-npm run build
-npm start --prefix backend
-```
+---
 
-The frontend build is emitted to `frontend/dist`. For production, set a strong `JWT_SECRET`, restrict `CORS_ORIGIN`, connect MongoDB Atlas, and provide an LLM provider through `AI_API_KEY` and `AI_API_URL`.
+## 🔌 API Endpoints Summary
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Register a new user (student/educator) |
+| `POST` | `/api/auth/login` | Authenticate user and issue JWT token |
+| `GET` | `/api/students/roster` | Retrieve student roster and performance metrics |
+| `GET` | `/api/assignments` | List class assignments and active quizzes |
+| `POST` | `/api/assignments/submit` | Submit assignment solutions and update telemetry |
+| `POST` | `/api/ai/vision` | Optical math problem interpretation & solving |
+| `POST` | `/api/ai/quiz/generate` | Generate adaptive AI practice quizzes |
+| `POST` | `/api/ml/predict-struggle` | Predict student cognitive struggle risk via Random Forest |
+| `POST` | `/api/calls/start` | Initialize WebRTC virtual tutoring call session |
+| `GET` | `/api/calls/:id/whiteboard` | Fetch real-time collaborative whiteboard vector strokes |
+| `POST` | `/api/calls/:id/whiteboard` | Push whiteboard vector stroke updates |
+
+---
+
+## 🛡️ License & Author
+
+Developed and maintained by **Akshay Bhat** (`bhatakshay09@gmail.com`).
